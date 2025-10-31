@@ -4,25 +4,34 @@ import './App.css';
 
 function App() {
   const [selectedView, setSelectedView] = useState('Edge');
+  const [prompt, setPrompt] = useState('');
   
   const [edgeMetrics] = useState({
-    cpuUsage: 45,
-    memoryUsage: 67,
     networkLatency: 12,
-    activeConnections: 156,
-    throughput: '2.3 Gbps',
-    temperature: '42°C',
+    cost: '$0.45/hr',
     fidScore: 127.3
   });
 
   const [cloudMetrics] = useState({
-    cpuUsage: 32,
-    memoryUsage: 54,
     networkLatency: 8,
-    activeConnections: 234,
-    throughput: '5.7 Gbps',
-    temperature: '38°C',
+    cost: '$0.78/hr',
     fidScore: 89.7
+  });
+
+  const [edgeInfo] = useState({
+    model: 'Stable Diffusion V2.1',
+    device: 'Qualcomm Snapdragon X Elite',
+    quantization: 'w816a',
+    memory: '32GB',
+    storage: '475GB'
+  });
+
+  const [cloudInfo] = useState({
+    model: 'Stable Diffusion V2.1',
+    service: 'AWS EC2 g4dn.xlarge',
+    quantization: 'FP32 - 13.5GB',
+    gpu: 'NVIDIA T4 16GB',
+    region: 'us-west-2'
   });
 
   const edgeChartData = [
@@ -42,10 +51,21 @@ function App() {
   ];
 
   const currentMetrics = selectedView === 'Edge' ? edgeMetrics : cloudMetrics;
+  const currentInfo = selectedView === 'Edge' ? edgeInfo : cloudInfo;
   const currentChartData = selectedView === 'Edge' ? edgeChartData : cloudChartData;
 
   const handleViewChange = (event) => {
     setSelectedView(event.target.value);
+  };
+
+  const handlePromptChange = (event) => {
+    setPrompt(event.target.value);
+  };
+
+  const handleSubmitPrompt = () => {
+    console.log('Submitted prompt:', prompt);
+    // Here you would typically send the prompt to your backend
+    alert(`Prompt submitted: ${prompt}`);
   };
 
   return (
@@ -68,6 +88,44 @@ function App() {
       
       <div className="main-content">
         <div className="left-section">
+          <div className="info-container">
+            <h3>{selectedView} Configuration</h3>
+            <div className="info-details">
+              <div className="info-item">
+                <span className="info-label">Model:</span>
+                <span className="info-value">{currentInfo.model}</span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">
+                  {selectedView === 'Edge' ? 'Device:' : 'Service:'}
+                </span>
+                <span className="info-value">
+                  {selectedView === 'Edge' ? currentInfo.device : currentInfo.service}
+                </span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">Quantization:</span>
+                <span className="info-value">{currentInfo.quantization}</span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">
+                  {selectedView === 'Edge' ? 'Memory:' : 'GPU:'}
+                </span>
+                <span className="info-value">
+                  {selectedView === 'Edge' ? currentInfo.memory : currentInfo.gpu}
+                </span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">
+                  {selectedView === 'Edge' ? 'Storage:' : 'Region:'}
+                </span>
+                <span className="info-value">
+                  {selectedView === 'Edge' ? currentInfo.storage : currentInfo.region}
+                </span>
+              </div>
+            </div>
+          </div>
+          
           <div className="image-container">
             <div className="mock-image">
               <p>{selectedView} Infrastructure</p>
@@ -82,36 +140,30 @@ function App() {
         </div>
         
         <div className="right-section">
-          <div className="metrics-grid">
+          <div className="metrics-grid-small">
             <div className="metric-card">
-              <h3>CPU Usage</h3>
-              <div className="metric-value">{currentMetrics.cpuUsage}%</div>
-            </div>
-            
-            <div className="metric-card">
-              <h3>Memory Usage</h3>
-              <div className="metric-value">{currentMetrics.memoryUsage}%</div>
-            </div>
-            
-            <div className="metric-card">
-              <h3>Network Latency</h3>
+              <h3>Latency</h3>
               <div className="metric-value">{currentMetrics.networkLatency}ms</div>
             </div>
             
             <div className="metric-card">
-              <h3>Active Connections</h3>
-              <div className="metric-value">{currentMetrics.activeConnections}</div>
+              <h3>Cost</h3>
+              <div className="metric-value">{currentMetrics.cost}</div>
             </div>
-            
-            <div className="metric-card">
-              <h3>Throughput</h3>
-              <div className="metric-value">{currentMetrics.throughput}</div>
-            </div>
-            
-            <div className="metric-card">
-              <h3>Temperature</h3>
-              <div className="metric-value">{currentMetrics.temperature}</div>
-            </div>
+          </div>
+          
+          <div className="prompt-container">
+            <h3>Enter Your Prompt Into the Stable Diffusion Model</h3>
+            <textarea
+              value={prompt}
+              onChange={handlePromptChange}
+              placeholder="Type your prompt here..."
+              className="prompt-input"
+              rows="4"
+            />
+            <button onClick={handleSubmitPrompt} className="submit-button">
+              Submit Prompt
+            </button>
           </div>
           
           <div className="chart-container">
