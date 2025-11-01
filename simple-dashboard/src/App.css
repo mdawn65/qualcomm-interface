@@ -286,6 +286,56 @@
   text-align: right;
 }
 
+.comparison-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+}
+
+.comparison-item h4 {
+  margin: 0 0 15px 0;
+  color: #333;
+  font-size: 1.1em;
+}
+
+.bar-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bar-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bar-label {
+  min-width: 60px;
+  font-weight: bold;
+  color: #555;
+}
+
+.bar {
+  height: 35px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: bold;
+  border-radius: 4px;
+  min-width: 80px;
+  font-size: 0.9em;
+}
+
+.edge-bar {
+  background-color: #84c0ff;
+}
+
+.cloud-bar {
+  background-color: #75cf8a;
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
   .main-content {

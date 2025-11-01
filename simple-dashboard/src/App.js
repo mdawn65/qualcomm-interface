@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import './App.css';
 
 function App() {
@@ -8,13 +7,13 @@ function App() {
   
   const [edgeMetrics] = useState({
     networkLatency: 12,
-    cost: '$0.45/hr',
+    cost: 0.45,
     fidScore: 127.3
   });
 
   const [cloudMetrics] = useState({
     networkLatency: 8,
-    cost: '$0.78/hr',
+    cost: 0.78,
     fidScore: 89.7
   });
 
@@ -34,25 +33,8 @@ function App() {
     region: 'us-west-2'
   });
 
-  const edgeChartData = [
-    { name: '1h ago', value: 30 },
-    { name: '45m ago', value: 45 },
-    { name: '30m ago', value: 35 },
-    { name: '15m ago', value: 50 },
-    { name: 'now', value: 45 }
-  ];
-
-  const cloudChartData = [
-    { name: '1h ago', value: 25 },
-    { name: '45m ago', value: 32 },
-    { name: '30m ago', value: 28 },
-    { name: '15m ago', value: 35 },
-    { name: 'now', value: 32 }
-  ];
-
   const currentMetrics = selectedView === 'Edge' ? edgeMetrics : cloudMetrics;
   const currentInfo = selectedView === 'Edge' ? edgeInfo : cloudInfo;
-  const currentChartData = selectedView === 'Edge' ? edgeChartData : cloudChartData;
 
   const handleViewChange = (event) => {
     setSelectedView(event.target.value);
@@ -64,7 +46,6 @@ function App() {
 
   const handleSubmitPrompt = () => {
     console.log('Submitted prompt:', prompt);
-    // Here you would typically send the prompt to your backend
     alert(`Prompt submitted: ${prompt}`);
   };
 
@@ -148,12 +129,12 @@ function App() {
             
             <div className="metric-card">
               <h3>Cost</h3>
-              <div className="metric-value">{currentMetrics.cost}</div>
+              <div className="metric-value">${currentMetrics.cost}/hr</div>
             </div>
           </div>
           
           <div className="prompt-container">
-            <h3>Enter Your Prompt Into the Stable Diffusion Model</h3>
+            <h3>Enter Your Prompt Into the Stable Diffusion V2.1 Model (Default: 20 Steps)</h3>
             <textarea
               value={prompt}
               onChange={handlePromptChange}
@@ -167,16 +148,62 @@ function App() {
           </div>
           
           <div className="chart-container">
-            <h2>{selectedView} Performance Over Time</h2>
-            <ResponsiveContainer width="100%" height={250}>
-              <LineChart data={currentChartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip />
-                <Line type="monotone" dataKey="value" stroke="#007bff" strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
+            <h2>Edge vs Cloud Comparison</h2>
+            <div className="comparison-bars">
+              <div className="comparison-item">
+                <h4>Latency (lower is better)</h4>
+                <div className="bar-container">
+                  <div className="bar-wrapper">
+                    <span className="bar-label">Edge:</span>
+                    <div className="bar edge-bar" style={{width: `${(edgeMetrics.networkLatency / 20) * 100}%`}}>
+                      {edgeMetrics.networkLatency}ms
+                    </div>
+                  </div>
+                  <div className="bar-wrapper">
+                    <span className="bar-label">Cloud:</span>
+                    <div className="bar cloud-bar" style={{width: `${(cloudMetrics.networkLatency / 20) * 100}%`}}>
+                      {cloudMetrics.networkLatency}ms
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="comparison-item">
+                <h4>Cost per Hour (lower is better)</h4>
+                <div className="bar-container">
+                  <div className="bar-wrapper">
+                    <span className="bar-label">Edge:</span>
+                    <div className="bar edge-bar" style={{width: `${(edgeMetrics.cost / 1) * 100}%`}}>
+                      ${edgeMetrics.cost}/hr
+                    </div>
+                  </div>
+                  <div className="bar-wrapper">
+                    <span className="bar-label">Cloud:</span>
+                    <div className="bar cloud-bar" style={{width: `${(cloudMetrics.cost / 1) * 100}%`}}>
+                      ${cloudMetrics.cost}/hr
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="comparison-item">
+                <h4>FID Score (lower is better)</h4>
+                <div className="bar-container">
+                  <div className="bar-wrapper">
+                    <span className="bar-label">Edge:</span>
+                    <div className="bar edge-bar" style={{width: `${(edgeMetrics.fidScore / 150) * 100}%`}}>
+                      {edgeMetrics.fidScore}
+                    </div>
+                  </div>
+                  <div className="bar-wrapper">
+                    <span className="bar-label">Cloud:</span>
+                    <div className="bar cloud-bar" style={{width: `${(cloudMetrics.fidScore / 150) * 100}%`}}>
+                      {cloudMetrics.fidScore}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
