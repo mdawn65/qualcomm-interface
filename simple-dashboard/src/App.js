@@ -6,7 +6,7 @@ function App() {
   const [selectedView, setSelectedView] = useState('Edge');
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
-  const [output, setOutput] = useState('');
+  const [imageUrl, setImageUrl] = useState(null);
   
   const [edgeMetrics] = useState({
     networkLatency: 12,
@@ -39,34 +39,27 @@ function App() {
   const currentMetrics = selectedView === 'Edge' ? edgeMetrics : cloudMetrics;
   const currentInfo = selectedView === 'Edge' ? edgeInfo : cloudInfo;
 
-  const handleViewChange = (event) => {
-    setSelectedView(event.target.value);
-  };
-
-  const handlePromptChange = (event) => {
-    setPrompt(event.target.value);
-  };
+  const handleViewChange = (event) => setSelectedView(event.target.value);
 
   const handleSubmitPrompt = () => {
-    // POST the prompt to the backend server which will run demo.py
-    const payload = { prompt, num_steps: 20 };
-    setOutput('');
+    if (!prompt.trim()) return;
     setLoading(true);
+    setImageUrl(null);
 
     fetch('http://localhost:5000/generate/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ prompt, num_steps: 20 })
     })
       .then(async (res) => {
         if (!res.ok) throw new Error('Failed to generate image');
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);
-        setOutput(url); // store image URL instead of text
+        setImageUrl(url);
       })
       .catch((err) => {
         console.error('Run error:', err);
-        setOutput(null);
+        alert('Error generating image');
       })
       .finally(() => setLoading(false));
   };
@@ -129,13 +122,6 @@ function App() {
             </div>
           </div>
           
-          <div className="image-container">
-            <div className="mock-image">
-              <p>{selectedView} Infrastructure</p>
-              <p>📊</p>
-            </div>
-          </div>
-          
           <div className="fid-score-card">
             <h3>FID Score</h3>
             <div className="metric-value">{currentMetrics.fidScore}</div>
@@ -154,38 +140,32 @@ function App() {
               <div className="metric-value">${currentMetrics.cost}/hr</div>
             </div>
           </div>
-          
+
+          {/* Prompt Generator */}
           <PromptGenerator onGenerate={(p) => setPrompt(p)} />
 
-          <div className="prompt-container">
-            <h3>Enter Your Prompt Into the Stable Diffusion V2.1 Model (Default: 20 Steps)</h3>
-            <textarea
-              value={prompt}
-              onChange={handlePromptChange}
-              placeholder="Type your prompt here..."
-              className="prompt-input"
-              rows="4"
-            />
-            <button onClick={handleSubmitPrompt} className="submit-button">
-              Submit Prompt
+          {/* Generate Button + Image Display */}
+          <div style={{ marginTop: '20px' }}>
+            <button
+              onClick={handleSubmitPrompt}
+              className="submit-button"
+              disabled={loading}
+            >
+              {loading ? 'Generating...' : 'Generate Image'}
             </button>
           </div>
 
-          <div className="prompt-output">
-            <h4>Run Status</h4>
-            <div>{loading ? 'Running... (this can take a while)' : 'Idle'}</div>
-            <h4>Output</h4>
-            {output ? (
+          {imageUrl && (
+            <div style={{ marginTop: '20px' }}>
               <img
-                src={output}
+                src={imageUrl}
                 alt="Generated"
-                style={{ width: '400px', borderRadius: '8px', marginTop: '10px' }}
+                style={{ maxWidth: '100%', borderRadius: '8px' }}
               />
-            ) : (
-              <pre className="output-box">{!loading ? 'No image yet' : ''}</pre>
-            )}
-          </div>
-          
+            </div>
+          )}
+
+          {/* Comparison Charts */}
           <div className="chart-container">
             <h2>Edge vs Cloud Comparison</h2>
             <div className="comparison-bars">
@@ -207,7 +187,7 @@ function App() {
                   </div>
                 </div>
               </div>
-              
+
               {/* Cost */}
               <div className="comparison-item">
                 <h4>Cost per Hour (lower is better)</h4>
@@ -226,7 +206,7 @@ function App() {
                   </div>
                 </div>
               </div>
-              
+
               {/* FID Score */}
               <div className="comparison-item">
                 <h4>FID Score (lower is better)</h4>
@@ -245,6 +225,7 @@ function App() {
                   </div>
                 </div>
               </div>
+
             </div>
           </div>
         </div>
