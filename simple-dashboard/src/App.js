@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import './App.css';
+import PromptGenerator from './PromptGenerator';
 
 function App() {
   const [selectedView, setSelectedView] = useState('Edge');
   const [prompt, setPrompt] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [output, setOutput] = useState('');
   
   const [edgeMetrics] = useState({
     networkLatency: 12,
@@ -45,8 +48,27 @@ function App() {
   };
 
   const handleSubmitPrompt = () => {
-    console.log('Submitted prompt:', prompt);
-    alert(`Prompt submitted: ${prompt}`);
+    // POST the prompt to the backend server which will run demo.py
+    const payload = { prompt, num_steps: 20 };
+    setOutput('');
+    setLoading(true);
+
+    fetch('http://localhost:5000/generate/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error('Failed to generate image');
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        setOutput(url); // store image URL instead of text
+      })
+      .catch((err) => {
+        console.error('Run error:', err);
+        setOutput(null);
+      })
+      .finally(() => setLoading(false));
   };
 
   return (
@@ -133,6 +155,8 @@ function App() {
             </div>
           </div>
           
+          <PromptGenerator onGenerate={(p) => setPrompt(p)} />
+
           <div className="prompt-container">
             <h3>Enter Your Prompt Into the Stable Diffusion V2.1 Model (Default: 20 Steps)</h3>
             <textarea
@@ -146,10 +170,26 @@ function App() {
               Submit Prompt
             </button>
           </div>
+
+          <div className="prompt-output">
+            <h4>Run Status</h4>
+            <div>{loading ? 'Running... (this can take a while)' : 'Idle'}</div>
+            <h4>Output</h4>
+            {output ? (
+              <img
+                src={output}
+                alt="Generated"
+                style={{ width: '400px', borderRadius: '8px', marginTop: '10px' }}
+              />
+            ) : (
+              <pre className="output-box">{!loading ? 'No image yet' : ''}</pre>
+            )}
+          </div>
           
           <div className="chart-container">
             <h2>Edge vs Cloud Comparison</h2>
             <div className="comparison-bars">
+              {/* Latency */}
               <div className="comparison-item">
                 <h4>Latency (lower is better)</h4>
                 <div className="bar-container">
@@ -168,6 +208,7 @@ function App() {
                 </div>
               </div>
               
+              {/* Cost */}
               <div className="comparison-item">
                 <h4>Cost per Hour (lower is better)</h4>
                 <div className="bar-container">
@@ -186,6 +227,7 @@ function App() {
                 </div>
               </div>
               
+              {/* FID Score */}
               <div className="comparison-item">
                 <h4>FID Score (lower is better)</h4>
                 <div className="bar-container">
