@@ -7,8 +7,8 @@ function App() {
 
   const [edgeMetrics, setEdgeMetrics] = useState({
     networkLatency: 0,
-    cost: 0.45,
-    fidScore: 127.3
+    cost: 0,
+    fidScore: 0
   });
 
   const [cloudMetrics, setCloudMetrics] = useState({
