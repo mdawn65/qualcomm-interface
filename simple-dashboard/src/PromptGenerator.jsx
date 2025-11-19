@@ -1,17 +1,32 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
+import { useLatencyTracker } from "./useLatencyTracker";
 
-const PromptGenerator = () => {
+const PromptGenerator = ({ selectedView, onLatencyCalculated }) => {
   const [prompt, setPrompt] = useState("");
   const [imageUrl, setImageUrl] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  // Use the latency tracker hook
+  const {
+    imageRef,
+    handleImageLoad,
+    handleImageError,
+    startTracking,
+    resetTracking
+  } = useLatencyTracker(imageUrl, onLatencyCalculated);
+
   const generateImage = async () => {
     if (!prompt.trim()) return;
 
+    console.log('[PromptGenerator] Generate button clicked');
     setLoading(true);
     setImageUrl(null);
 
+    // Start tracking latency when button is clicked
+    startTracking(selectedView);
+
     try {
+      console.log('[PromptGenerator] Fetching image from server...');
       const response = await fetch("http://localhost:5000/generate/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -25,15 +40,20 @@ const PromptGenerator = () => {
         throw new Error("Failed to generate image");
       }
 
+      console.log('[PromptGenerator] Received response, creating blob...');
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
-      setImageUrl(url);
-    } catch (error) {
-      console.error(error);
-      alert("Error generating image.");
-    }
+      console.log('[PromptGenerator] Blob URL created, setting image URL...');
 
-    setLoading(false);
+      // Display the image - latency tracker will handle tracking when it loads
+      setImageUrl(url);
+      setLoading(false);
+    } catch (error) {
+      console.error('[PromptGenerator] Error:', error);
+      alert("Error generating image.");
+      setLoading(false);
+      resetTracking();
+    }
   };
 
   return (
@@ -60,8 +80,11 @@ const PromptGenerator = () => {
       {imageUrl && (
         <div style={{ marginTop: 20 }}>
           <img
+            ref={imageRef}
             src={imageUrl}
             alt="generated"
+            onLoad={handleImageLoad}
+            onError={handleImageError}
             style={{ width: "400px", borderRadius: "8px" }}
           />
         </div>

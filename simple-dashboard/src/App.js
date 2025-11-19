@@ -1,21 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import './App.css';
 import PromptGenerator from './PromptGenerator';
 
 function App() {
   const [selectedView, setSelectedView] = useState('Edge');
-  const [prompt, setPrompt] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [imageUrl, setImageUrl] = useState(null);
-  
-  const [edgeMetrics] = useState({
-    networkLatency: 12,
+
+  const [edgeMetrics, setEdgeMetrics] = useState({
+    networkLatency: 0,
     cost: 0.45,
     fidScore: 127.3
   });
 
-  const [cloudMetrics] = useState({
-    networkLatency: 8,
+  const [cloudMetrics, setCloudMetrics] = useState({
+    networkLatency: 0,
     cost: 0.78,
     fidScore: 89.7
   });
@@ -41,28 +38,26 @@ function App() {
 
   const handleViewChange = (event) => setSelectedView(event.target.value);
 
-  const handleSubmitPrompt = () => {
-    if (!prompt.trim()) return;
-    setLoading(true);
-    setImageUrl(null);
-
-    fetch('http://localhost:5000/generate/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, num_steps: 20 })
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error('Failed to generate image');
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        setImageUrl(url);
-      })
-      .catch((err) => {
-        console.error('Run error:', err);
-        alert('Error generating image');
-      })
-      .finally(() => setLoading(false));
-  };
+  // Stable callback for latency calculation
+  const handleLatencyCalculated = useCallback((latencyInSeconds, view) => {
+    console.log('[App] ========== LATENCY CALCULATED ==========');
+    console.log('[App] Latency:', latencyInSeconds, 'seconds');
+    console.log('[App] View:', view);
+    
+    if (view === 'Edge') {
+      setEdgeMetrics((prev) => {
+        const updated = { ...prev, networkLatency: latencyInSeconds };
+        console.log('[App] Updated Edge metrics:', updated);
+        return updated;
+      });
+    } else {
+      setCloudMetrics((prev) => {
+        const updated = { ...prev, networkLatency: latencyInSeconds };
+        console.log('[App] Updated Cloud metrics:', updated);
+        return updated;
+      });
+    }
+  }, []);
 
   return (
     <div className="App">
@@ -70,9 +65,9 @@ function App() {
         <h1>Qualcomm {selectedView} Metrics Dashboard</h1>
         <div className="dropdown-container">
           <label htmlFor="view-select">View: </label>
-          <select 
-            id="view-select" 
-            value={selectedView} 
+          <select
+            id="view-select"
+            value={selectedView}
             onChange={handleViewChange}
             className="view-dropdown"
           >
@@ -81,7 +76,7 @@ function App() {
           </select>
         </div>
       </header>
-      
+
       <div className="main-content">
         <div className="left-section">
           <div className="info-container">
@@ -92,49 +87,37 @@ function App() {
                 <span className="info-value">{currentInfo.model}</span>
               </div>
               <div className="info-item">
-                <span className="info-label">
-                  {selectedView === 'Edge' ? 'Device:' : 'Service:'}
-                </span>
-                <span className="info-value">
-                  {selectedView === 'Edge' ? currentInfo.device : currentInfo.service}
-                </span>
+                <span className="info-label">{selectedView === 'Edge' ? 'Device:' : 'Service:'}</span>
+                <span className="info-value">{selectedView === 'Edge' ? currentInfo.device : currentInfo.service}</span>
               </div>
               <div className="info-item">
                 <span className="info-label">Quantization:</span>
                 <span className="info-value">{currentInfo.quantization}</span>
               </div>
               <div className="info-item">
-                <span className="info-label">
-                  {selectedView === 'Edge' ? 'Memory:' : 'GPU:'}
-                </span>
-                <span className="info-value">
-                  {selectedView === 'Edge' ? currentInfo.memory : currentInfo.gpu}
-                </span>
+                <span className="info-label">{selectedView === 'Edge' ? 'Memory:' : 'GPU:'}</span>
+                <span className="info-value">{selectedView === 'Edge' ? currentInfo.memory : currentInfo.gpu}</span>
               </div>
               <div className="info-item">
-                <span className="info-label">
-                  {selectedView === 'Edge' ? 'Storage:' : 'Region:'}
-                </span>
-                <span className="info-value">
-                  {selectedView === 'Edge' ? currentInfo.storage : currentInfo.region}
-                </span>
+                <span className="info-label">{selectedView === 'Edge' ? 'Storage:' : 'Region:'}</span>
+                <span className="info-value">{selectedView === 'Edge' ? currentInfo.storage : currentInfo.region}</span>
               </div>
             </div>
           </div>
-          
+
           <div className="fid-score-card">
             <h3>FID Score</h3>
             <div className="metric-value">{currentMetrics.fidScore}</div>
           </div>
         </div>
-        
+
         <div className="right-section">
           <div className="metrics-grid-small">
             <div className="metric-card">
               <h3>Latency</h3>
-              <div className="metric-value">{currentMetrics.networkLatency}ms</div>
+              <div className="metric-value">{currentMetrics.networkLatency.toFixed(2)}s</div>
             </div>
-            
+
             <div className="metric-card">
               <h3>Cost</h3>
               <div className="metric-value">${currentMetrics.cost}/hr</div>
@@ -142,28 +125,10 @@ function App() {
           </div>
 
           {/* Prompt Generator */}
-          <PromptGenerator onGenerate={(p) => setPrompt(p)} />
-
-          {/* Generate Button + Image Display */}
-          <div style={{ marginTop: '20px' }}>
-            <button
-              onClick={handleSubmitPrompt}
-              className="submit-button"
-              disabled={loading}
-            >
-              {loading ? 'Generating...' : 'Generate Image'}
-            </button>
-          </div>
-
-          {imageUrl && (
-            <div style={{ marginTop: '20px' }}>
-              <img
-                src={imageUrl}
-                alt="Generated"
-                style={{ maxWidth: '100%', borderRadius: '8px' }}
-              />
-            </div>
-          )}
+          <PromptGenerator 
+            selectedView={selectedView}
+            onLatencyCalculated={handleLatencyCalculated}
+          />
 
           {/* Comparison Charts */}
           <div className="chart-container">
@@ -175,14 +140,20 @@ function App() {
                 <div className="bar-container">
                   <div className="bar-wrapper">
                     <span className="bar-label">Edge:</span>
-                    <div className="bar edge-bar" style={{width: `${(edgeMetrics.networkLatency / 20) * 100}%`}}>
-                      {edgeMetrics.networkLatency}ms
+                    <div
+                      className="bar edge-bar"
+                      style={{ width: `${(edgeMetrics.networkLatency / 20) * 100}%` }}
+                    >
+                      {edgeMetrics.networkLatency.toFixed(2)}s
                     </div>
                   </div>
                   <div className="bar-wrapper">
                     <span className="bar-label">Cloud:</span>
-                    <div className="bar cloud-bar" style={{width: `${(cloudMetrics.networkLatency / 20) * 100}%`}}>
-                      {cloudMetrics.networkLatency}ms
+                    <div
+                      className="bar cloud-bar"
+                      style={{ width: `${(cloudMetrics.networkLatency / 20) * 100}%` }}
+                    >
+                      {cloudMetrics.networkLatency.toFixed(2)}s
                     </div>
                   </div>
                 </div>
@@ -194,13 +165,19 @@ function App() {
                 <div className="bar-container">
                   <div className="bar-wrapper">
                     <span className="bar-label">Edge:</span>
-                    <div className="bar edge-bar" style={{width: `${(edgeMetrics.cost / 1) * 100}%`}}>
+                    <div
+                      className="bar edge-bar"
+                      style={{ width: `${(edgeMetrics.cost / 1) * 100}%` }}
+                    >
                       ${edgeMetrics.cost}/hr
                     </div>
                   </div>
                   <div className="bar-wrapper">
                     <span className="bar-label">Cloud:</span>
-                    <div className="bar cloud-bar" style={{width: `${(cloudMetrics.cost / 1) * 100}%`}}>
+                    <div
+                      className="bar cloud-bar"
+                      style={{ width: `${(cloudMetrics.cost / 1) * 100}%` }}
+                    >
                       ${cloudMetrics.cost}/hr
                     </div>
                   </div>
@@ -213,13 +190,19 @@ function App() {
                 <div className="bar-container">
                   <div className="bar-wrapper">
                     <span className="bar-label">Edge:</span>
-                    <div className="bar edge-bar" style={{width: `${(edgeMetrics.fidScore / 150) * 100}%`}}>
+                    <div
+                      className="bar edge-bar"
+                      style={{ width: `${(edgeMetrics.fidScore / 150) * 100}%` }}
+                    >
                       {edgeMetrics.fidScore}
                     </div>
                   </div>
                   <div className="bar-wrapper">
                     <span className="bar-label">Cloud:</span>
-                    <div className="bar cloud-bar" style={{width: `${(cloudMetrics.fidScore / 150) * 100}%`}}>
+                    <div
+                      className="bar cloud-bar"
+                      style={{ width: `${(cloudMetrics.fidScore / 150) * 100}%` }}
+                    >
                       {cloudMetrics.fidScore}
                     </div>
                   </div>
