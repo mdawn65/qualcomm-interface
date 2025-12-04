@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { useLatencyTracker } from "./useLatencyTracker";
 import "./App.css";
 
 const PromptGenerator = ({ selectedView, onLatencyCalculated }) => {
@@ -7,24 +6,12 @@ const PromptGenerator = ({ selectedView, onLatencyCalculated }) => {
   const [imageUrl, setImageUrl] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // Use the latency tracker hook
-  const {
-    imageRef,
-    handleImageLoad,
-    handleImageError,
-    startTracking,
-    resetTracking
-  } = useLatencyTracker(imageUrl, onLatencyCalculated);
-
   const generateImage = async () => {
     if (!prompt.trim()) return;
 
     console.log('[PromptGenerator] Generate button clicked');
     setLoading(true);
     setImageUrl(null);
-
-    // Start tracking latency when button is clicked
-    startTracking(selectedView);
 
     try {
       console.log('[PromptGenerator] Fetching image from server...');
@@ -41,19 +28,33 @@ const PromptGenerator = ({ selectedView, onLatencyCalculated }) => {
         throw new Error("Failed to generate image");
       }
 
-      console.log('[PromptGenerator] Received response, creating blob...');
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      console.log('[PromptGenerator] Blob URL created, setting image URL...');
+      const data = await response.json();
+      console.log('[PromptGenerator] Response data:', data);
 
-      // Display the image - latency tracker will handle tracking when it loads
-      setImageUrl(url);
+      if (!data.success) {
+        throw new Error(data.message || "Failed to generate image");
+      }
+
+      // Create a data URL from the base64 image data
+      if (data.imageBase64) {
+        const url = `data:image/png;base64,${data.imageBase64}`;
+        console.log('[PromptGenerator] Data URL created, setting image URL...');
+        setImageUrl(url);
+      } else {
+        console.warn('[PromptGenerator] No imageBase64 field in response');
+      }
+
+      // Use backend-reported latency for the metric
+      if (typeof data.latencySeconds === 'number' && onLatencyCalculated) {
+        console.log('[PromptGenerator] Reporting latency from backend:', data.latencySeconds);
+        onLatencyCalculated(data.latencySeconds, selectedView);
+      }
+
       setLoading(false);
     } catch (error) {
       console.error('[PromptGenerator] Error:', error);
       alert("Error generating image.");
       setLoading(false);
-      resetTracking();
     }
   };
 
@@ -134,11 +135,8 @@ const PromptGenerator = ({ selectedView, onLatencyCalculated }) => {
           padding: '15px'
         }}>
           <img
-            ref={imageRef}
             src={imageUrl}
             alt="Generated"
-            onLoad={handleImageLoad}
-            onError={handleImageError}
             style={{ 
               maxWidth: '100%',
               height: 'auto',

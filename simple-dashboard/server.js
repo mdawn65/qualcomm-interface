@@ -1,6 +1,7 @@
 const express = require('express');
 const { spawn } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -58,7 +59,38 @@ app.post('/run', (req, res) => {
 
   py.on('close', (code) => {
     const success = code === 0;
-    res.status(success ? 200 : 500).json({ success, code, stdout, stderr, message: success ? 'Process completed' : 'Process failed' });
+
+    // Parse latency from stdout: look for "Image generated in X.XX seconds"
+    let latencySeconds = null;
+    const latencyMatch = stdout.match(/Image generated in\s+([0-9.]+)\s+seconds/);
+    if (latencyMatch) {
+      latencySeconds = parseFloat(latencyMatch[1]);
+    }
+
+    // Attempt to read the generated image from outputs/image.png
+    let imageBase64 = null;
+    try {
+      const imagePath = path.join(cwd, 'outputs', 'image.png');
+      if (fs.existsSync(imagePath)) {
+        const imageBuffer = fs.readFileSync(imagePath);
+        imageBase64 = imageBuffer.toString('base64');
+      }
+    } catch (err) {
+      // If reading the image fails, just log it on the server side
+      console.error('Failed to read generated image:', err);
+    }
+
+    res
+      .status(success ? 200 : 500)
+      .json({
+        success,
+        code,
+        stdout,
+        stderr,
+        latencySeconds,
+        imageBase64,
+        message: success ? 'Process completed' : 'Process failed'
+      });
   });
 
   py.on('error', (err) => {
