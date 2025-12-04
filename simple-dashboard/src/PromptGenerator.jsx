@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import "./App.css";
 
-const PromptGenerator = ({ selectedView, onLatencyCalculated }) => {
+const PromptGenerator = ({ selectedView, onLatencyCalculated, onFidCalculated }) => {
   const [prompt, setPrompt] = useState("");
   const [imageUrl, setImageUrl] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -48,6 +48,12 @@ const PromptGenerator = ({ selectedView, onLatencyCalculated }) => {
       if (typeof data.latencySeconds === 'number' && onLatencyCalculated) {
         console.log('[PromptGenerator] Reporting latency from backend:', data.latencySeconds);
         onLatencyCalculated(data.latencySeconds, selectedView);
+      }
+
+      // Use backend-reported FID score for the metric
+      if (typeof data.fidScore === 'number' && onFidCalculated) {
+        console.log('[PromptGenerator] Reporting FID from backend:', data.fidScore);
+        onFidCalculated(data.fidScore, selectedView);
       }
 
       setLoading(false);

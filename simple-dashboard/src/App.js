@@ -59,6 +59,27 @@ function App() {
     }
   }, []);
 
+  // Stable callback for FID calculation
+  const handleFidCalculated = useCallback((fidScore, view) => {
+    console.log('[App] ========== FID CALCULATED ==========');
+    console.log('[App] FID:', fidScore);
+    console.log('[App] View:', view);
+
+    if (view === 'Edge') {
+      setEdgeMetrics((prev) => {
+        const updated = { ...prev, fidScore };
+        console.log('[App] Updated Edge metrics (FID):', updated);
+        return updated;
+      });
+    } else {
+      setCloudMetrics((prev) => {
+        const updated = { ...prev, fidScore };
+        console.log('[App] Updated Cloud metrics (FID):', updated);
+        return updated;
+      });
+    }
+  }, []);
+
   return (
     <div className="App">
       <header className="header">
@@ -128,6 +149,7 @@ function App() {
           <PromptGenerator 
             selectedView={selectedView}
             onLatencyCalculated={handleLatencyCalculated}
+            onFidCalculated={handleFidCalculated}
           />
 
           {/* Comparison Charts */}
