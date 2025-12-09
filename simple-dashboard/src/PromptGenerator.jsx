@@ -14,46 +14,75 @@ const PromptGenerator = ({ selectedView, onLatencyCalculated, onClipCalculated }
     setImageUrl(null);
 
     try {
-      console.log('[PromptGenerator] Fetching image from server...');
-      const response = await fetch("http://localhost:5000/generate/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: prompt,
-          num_steps: 20
-        })
-      });
+      if (selectedView === 'Edge') {
+        console.log('[PromptGenerator] [Edge] Fetching image from server...');
+        const response = await fetch("http://localhost:5000/generate/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: prompt,
+            num_steps: 20
+          })
+        });
 
-      if (!response.ok) {
-        throw new Error("Failed to generate image");
-      }
+        if (!response.ok) {
+          throw new Error("Failed to generate image");
+        }
 
-      const data = await response.json();
-      console.log('[PromptGenerator] Response data:', data);
+        const data = await response.json();
+        console.log('[PromptGenerator] [Edge] Response data:', data);
 
-      if (!data.success) {
-        throw new Error(data.message || "Failed to generate image");
-      }
+        if (!data.success) {
+          throw new Error(data.message || "Failed to generate image");
+        }
 
-      // Create a data URL from the base64 image data
-      if (data.imageBase64) {
-        const url = `data:image/png;base64,${data.imageBase64}`;
-        console.log('[PromptGenerator] Data URL created, setting image URL...');
-        setImageUrl(url);
+        if (data.imageBase64) {
+          const url = `data:image/png;base64,${data.imageBase64}`;
+          console.log('[PromptGenerator] [Edge] Data URL created, setting image URL...');
+          setImageUrl(url);
+        } else {
+          console.warn('[PromptGenerator] [Edge] No imageBase64 field in response');
+        }
+
+        if (typeof data.latencySeconds === 'number' && onLatencyCalculated) {
+          console.log('[PromptGenerator] [Edge] Reporting latency from backend:', data.latencySeconds);
+          onLatencyCalculated(data.latencySeconds, selectedView);
+        }
+
+        if (typeof data.clipScore === 'number' && onClipCalculated) {
+          console.log('[PromptGenerator] [Edge] Reporting CLIP from backend:', data.clipScore);
+          onClipCalculated(data.clipScore, selectedView);
+        }
       } else {
-        console.warn('[PromptGenerator] No imageBase64 field in response');
-      }
+        console.log('[PromptGenerator] [Cloud] Fetching image from FastAPI server...');
+        const response = await fetch("http://localhost:8000/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: prompt,
+            num_inference_steps: 20
+          })
+        });
 
-      // Use backend-reported latency for the metric
-      if (typeof data.latencySeconds === 'number' && onLatencyCalculated) {
-        console.log('[PromptGenerator] Reporting latency from backend:', data.latencySeconds);
-        onLatencyCalculated(data.latencySeconds, selectedView);
-      }
+        if (!response.ok) {
+          throw new Error("Failed to generate image from cloud server");
+        }
 
-      // Use backend-reported CLIP score for the metric
-      if (typeof data.clipScore === 'number' && onClipCalculated) {
-        console.log('[PromptGenerator] Reporting CLIP from backend:', data.clipScore);
-        onClipCalculated(data.clipScore, selectedView);
+        const data = await response.json();
+        console.log('[PromptGenerator] [Cloud] Response data:', data);
+
+        if (data.image_url) {
+          const url = `http://localhost:8000${data.image_url}`;
+          console.log('[PromptGenerator] [Cloud] Image URL created, setting image URL...');
+          setImageUrl(url);
+        } else {
+          console.warn('[PromptGenerator] [Cloud] No image_url field in response');
+        }
+
+        if (typeof data.inference_time === 'number' && onLatencyCalculated) {
+          console.log('[PromptGenerator] [Cloud] Reporting latency from backend:', data.inference_time);
+          onLatencyCalculated(data.inference_time, selectedView);
+        }
       }
 
       setLoading(false);
