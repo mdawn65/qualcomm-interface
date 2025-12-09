@@ -13,24 +13,24 @@ function App() {
 
   const [cloudMetrics, setCloudMetrics] = useState({
     networkLatency: 0,
-    cost: 0.78,
-    clipScore: 89.7
+    cost: 0.504,
+    clipScore: 0
   });
 
   const [edgeInfo] = useState({
     model: 'Stable Diffusion V2.1',
     device: 'Qualcomm Snapdragon X Elite',
-    quantization: 'w816a',
+    quantization: 'w8a16',
     memory: '32GB',
     storage: '475GB'
   });
 
   const [cloudInfo] = useState({
     model: 'Stable Diffusion V2.1',
-    service: 'AWS EC2 g4dn.xlarge',
-    quantization: 'FP32 - 13.5GB',
-    gpu: 'NVIDIA T4 16GB',
-    region: 'us-west-2'
+    service: 'Verda Cloud Platform',
+    quantization: 'w8a16',
+    gpu: '1X NVIDIA RTX A6000',
+    region: 'FIN-01'
   });
 
   const currentMetrics = selectedView === 'Edge' ? edgeMetrics : cloudMetrics;
