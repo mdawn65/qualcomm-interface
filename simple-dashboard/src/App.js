@@ -8,13 +8,13 @@ function App() {
   const [edgeMetrics, setEdgeMetrics] = useState({
     networkLatency: 0,
     cost: 0,
-    fidScore: 0
+    clipScore: 0
   });
 
   const [cloudMetrics, setCloudMetrics] = useState({
     networkLatency: 0,
     cost: 0.78,
-    fidScore: 89.7
+    clipScore: 89.7
   });
 
   const [edgeInfo] = useState({
@@ -59,22 +59,22 @@ function App() {
     }
   }, []);
 
-  // Stable callback for FID calculation
-  const handleFidCalculated = useCallback((fidScore, view) => {
-    console.log('[App] ========== FID CALCULATED ==========');
-    console.log('[App] FID:', fidScore);
+  // Stable callback for CLIP Score calculation
+  const handleClipCalculated = useCallback((clipScore, view) => {
+    console.log('[App] ========== CLIP SCORE CALCULATED ==========');
+    console.log('[App] CLIP:', clipScore);
     console.log('[App] View:', view);
 
     if (view === 'Edge') {
       setEdgeMetrics((prev) => {
-        const updated = { ...prev, fidScore };
-        console.log('[App] Updated Edge metrics (FID):', updated);
+        const updated = { ...prev, clipScore };
+        console.log('[App] Updated Edge metrics (CLIP Score):', updated);
         return updated;
       });
     } else {
       setCloudMetrics((prev) => {
-        const updated = { ...prev, fidScore };
-        console.log('[App] Updated Cloud metrics (FID):', updated);
+        const updated = { ...prev, clipScore };
+        console.log('[App] Updated Cloud metrics (CLIP Score):', updated);
         return updated;
       });
     }
@@ -126,9 +126,9 @@ function App() {
             </div>
           </div>
 
-          <div className="fid-score-card">
-            <h3>FID Score</h3>
-            <div className="metric-value">{currentMetrics.fidScore}</div>
+          <div className="clip-score-card">
+            <h3>CLIP Score</h3>
+            <div className="metric-value">{currentMetrics.clipScore}</div>
           </div>
         </div>
 
@@ -149,7 +149,7 @@ function App() {
           <PromptGenerator 
             selectedView={selectedView}
             onLatencyCalculated={handleLatencyCalculated}
-            onFidCalculated={handleFidCalculated}
+            onClipCalculated={handleClipCalculated}
           />
 
           {/* Comparison Charts */}
@@ -206,26 +206,26 @@ function App() {
                 </div>
               </div>
 
-              {/* FID Score */}
+              {/* CLIP Score */}
               <div className="comparison-item">
-                <h4>FID Score (lower is better)</h4>
+                <h4>CLIP Score (lower is better)</h4>
                 <div className="bar-container">
                   <div className="bar-wrapper">
                     <span className="bar-label">Edge:</span>
                     <div
                       className="bar edge-bar"
-                      style={{ width: `${(edgeMetrics.fidScore / 150) * 100}%` }}
+                      style={{ width: `${(edgeMetrics.clipScore / 150) * 100}%` }}
                     >
-                      {edgeMetrics.fidScore}
+                      {edgeMetrics.clipScore}
                     </div>
                   </div>
                   <div className="bar-wrapper">
                     <span className="bar-label">Cloud:</span>
                     <div
                       className="bar cloud-bar"
-                      style={{ width: `${(cloudMetrics.fidScore / 150) * 100}%` }}
+                      style={{ width: `${(cloudMetrics.clipScore / 150) * 100}%` }}
                     >
-                      {cloudMetrics.fidScore}
+                      {cloudMetrics.clipScore}
                     </div>
                   </div>
                 </div>
