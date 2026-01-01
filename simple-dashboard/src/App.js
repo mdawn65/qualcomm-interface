@@ -8,13 +8,17 @@ function App() {
   const [edgeMetrics, setEdgeMetrics] = useState({
     networkLatency: 0,
     cost: 0,
-    clipScore: 0
+    clipScore: 0,
+    totalCost: 0,
+    costPerGeneration: 0
   });
 
   const [cloudMetrics, setCloudMetrics] = useState({
     networkLatency: 0,
     cost: 0.504,
-    clipScore: 0
+    clipScore: 0,
+    totalCost: 0,
+    costPerGeneration: 0
   });
 
   const [edgeInfo] = useState({
@@ -54,6 +58,28 @@ function App() {
       setCloudMetrics((prev) => {
         const updated = { ...prev, networkLatency: latencyInSeconds };
         console.log('[App] Updated Cloud metrics:', updated);
+        return updated;
+      });
+    }
+  }, []);
+
+  // Stable callback for cost calculation
+  const handleCostCalculated = useCallback((totalCost, costPerGeneration, view) => {
+    console.log('[App] ========== COST CALCULATED ==========');
+    console.log('[App] Total Cost:', totalCost);
+    console.log('[App] Cost Per Generation:', costPerGeneration);
+    console.log('[App] View:', view);
+
+    if (view === 'Edge') {
+      setEdgeMetrics((prev) => {
+        const updated = { ...prev, totalCost, costPerGeneration };
+        console.log('[App] Updated Edge metrics (Cost):', updated);
+        return updated;
+      });
+    } else {
+      setCloudMetrics((prev) => {
+        const updated = { ...prev, totalCost, costPerGeneration };
+        console.log('[App] Updated Cloud metrics (Cost):', updated);
         return updated;
       });
     }
@@ -142,13 +168,21 @@ function App() {
             <div className="metric-card">
               <h3>Cost</h3>
               <div className="metric-value">${currentMetrics.cost}/hr</div>
+              {selectedView !== 'Edge' && currentMetrics.totalCost > 0 && (
+                <div style={{ fontSize: '12px', marginTop: '8px', color: '#666' }}>
+                  <div>Total: ${currentMetrics.totalCost.toFixed(4)}</div>
+                  <div>Per Gen: ${currentMetrics.costPerGeneration.toFixed(4)}</div>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Prompt Generator */}
           <PromptGenerator 
             selectedView={selectedView}
+            costPerHour={currentMetrics.cost}
             onLatencyCalculated={handleLatencyCalculated}
+            onCostCalculated={handleCostCalculated}
             onClipCalculated={handleClipCalculated}
           />
 
