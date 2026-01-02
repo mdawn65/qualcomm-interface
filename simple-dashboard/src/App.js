@@ -8,7 +8,6 @@ function App() {
   const [edgeMetrics, setEdgeMetrics] = useState({
     networkLatency: 0,
     cost: 0,
-    clipScore: 0,
     totalCost: 0,
     costPerGeneration: 0
   });
@@ -16,7 +15,6 @@ function App() {
   const [cloudMetrics, setCloudMetrics] = useState({
     networkLatency: 0,
     cost: 0.504,
-    clipScore: 0,
     totalCost: 0,
     costPerGeneration: 0
   });
@@ -85,27 +83,6 @@ function App() {
     }
   }, []);
 
-  // Stable callback for CLIP Score calculation
-  const handleClipCalculated = useCallback((clipScore, view) => {
-    console.log('[App] ========== CLIP SCORE CALCULATED ==========');
-    console.log('[App] CLIP:', clipScore);
-    console.log('[App] View:', view);
-
-    if (view === 'Edge') {
-      setEdgeMetrics((prev) => {
-        const updated = { ...prev, clipScore };
-        console.log('[App] Updated Edge metrics (CLIP Score):', updated);
-        return updated;
-      });
-    } else {
-      setCloudMetrics((prev) => {
-        const updated = { ...prev, clipScore };
-        console.log('[App] Updated Cloud metrics (CLIP Score):', updated);
-        return updated;
-      });
-    }
-  }, []);
-
   return (
     <div className="App">
       <header className="header">
@@ -152,13 +129,7 @@ function App() {
             </div>
           </div>
 
-          <div className="clip-score-card">
-            <h3>CLIP Score</h3>
-            <div className="metric-value">{currentMetrics.clipScore}</div>
-          </div>
-        </div>
-
-        <div className="right-section">
+          {/* Latency and Cost metrics moved under configuration */}
           <div className="metrics-grid-small">
             <div className="metric-card">
               <h3>Latency</h3>
@@ -176,14 +147,15 @@ function App() {
               )}
             </div>
           </div>
+        </div>
 
-          {/* Prompt Generator */}
+        <div className="right-section">
+          {/* Prompt Generator moved to top of right section */}
           <PromptGenerator 
             selectedView={selectedView}
             costPerHour={currentMetrics.cost}
             onLatencyCalculated={handleLatencyCalculated}
             onCostCalculated={handleCostCalculated}
-            onClipCalculated={handleClipCalculated}
           />
 
           {/* Comparison Charts */}
@@ -239,32 +211,6 @@ function App() {
                   </div>
                 </div>
               </div>
-
-              {/* CLIP Score */}
-              <div className="comparison-item">
-                <h4>CLIP Score (lower is better)</h4>
-                <div className="bar-container">
-                  <div className="bar-wrapper">
-                    <span className="bar-label">Edge:</span>
-                    <div
-                      className="bar edge-bar"
-                      style={{ width: `${(edgeMetrics.clipScore / 150) * 100}%` }}
-                    >
-                      {edgeMetrics.clipScore}
-                    </div>
-                  </div>
-                  <div className="bar-wrapper">
-                    <span className="bar-label">Cloud:</span>
-                    <div
-                      className="bar cloud-bar"
-                      style={{ width: `${(cloudMetrics.clipScore / 150) * 100}%` }}
-                    >
-                      {cloudMetrics.clipScore}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
             </div>
           </div>
         </div>
