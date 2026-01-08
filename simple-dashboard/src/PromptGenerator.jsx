@@ -37,16 +37,6 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
     if (!prompt.trim()) return;
     console.log('[PromptGenerator] Generate button clicked');
 
-    if (onInferenceCostIncrement) {
-      try {
-        const imageCount = totalImages;
-        console.log('[PromptGenerator] Incrementing Cost Per Inference for view:', selectedView, 'imageCount:', imageCount);
-        onInferenceCostIncrement(selectedView, imageCount);
-      } catch (err) {
-        console.error('[PromptGenerator] Error incrementing Cost Per Inference:', err);
-      }
-    }
-
     setLoading(true);
     setAverageLatency(null);
     setTotalLatency(null);
@@ -130,6 +120,11 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
                       guidanceScale: data.guidance_scale || null
                     }
                   }));
+
+                  // Increment cost per inference using per-image generation time
+                  if (onInferenceCostIncrement && typeof data.generationTime === 'number') {
+                    onInferenceCostIncrement(selectedView, data.generationTime);
+                  }
                 } else if (data.type === 'complete') {
                   console.log('[PromptGenerator] [Edge] Generation complete');
                   if (typeof data.totalLatency === 'number') {
@@ -159,6 +154,7 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             prompt: prompt,
+            negative_prompt: negativePrompt,
             num_steps: numSteps,
             num_seeds: numSeeds,
             num_guidance_samples: numGuidanceSamples,
@@ -209,6 +205,11 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
                       guidanceScale: data.guidance_scale || null
                     }
                   }));
+
+                  // Increment cost per inference using per-image generation time
+                  if (onInferenceCostIncrement && typeof data.generationTime === 'number') {
+                    onInferenceCostIncrement(selectedView, data.generationTime);
+                  }
                 } else if (data.type === 'complete') {
                   console.log('[PromptGenerator] [Cloud] Generation complete');
                   if (typeof data.totalLatency === 'number') {

@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import './App.css';
 import PromptGenerator from './PromptGenerator';
 
-const COST_PER_INFERENCE_INCREMENT = 0.000138;
+const COST_PER_INFERENCE_INCREMENT = 0.00003836;
 
 function App() {
   const [selectedView, setSelectedView] = useState('Edge');
@@ -17,7 +17,7 @@ function App() {
 
   const [cloudMetrics, setCloudMetrics] = useState({
     networkLatency: 0,
-    cost: 0.504,
+    cost: 0.138,
     totalCost: 0,
     costPerGeneration: 0,
     costPerInference: 0
@@ -35,7 +35,7 @@ function App() {
     model: 'Stable Diffusion V2.1',
     service: 'Verda Cloud Platform',
     quantization: 'w8a16',
-    gpu: '1X NVIDIA RTX A6000',
+    gpu: '1X Tesla V100',
     region: 'FIN-01'
   });
 
@@ -65,25 +65,26 @@ function App() {
     }
   }, []);
 
-  const handleInferenceCostIncrement = useCallback((view, imageCount) => {
+  // Increment cost per inference using per-image generation time (seconds)
+  const handleInferenceCostIncrement = useCallback((view, imageSeconds) => {
     console.log('[App] ========== INFERENCE COST INCREMENT ==========');
     console.log('[App] View:', view);
-    console.log('[App] Image count:', imageCount);
+    console.log('[App] Image seconds:', imageSeconds);
 
     // Edge view: do not change Cost Per Inference (stays at 0)
     if (view === 'Edge') {
-      console.log('[App] Edge view selected - Cost Per Inference remains unchanged');
-    } else {
-      setCloudMetrics((prev) => {
-        const updated = {
-          ...prev,
-          costPerInference: prev.costPerInference + (COST_PER_INFERENCE_INCREMENT * (imageCount || 1))
-        };
-
-        console.log('[App] Updated Cloud metrics (Cost Per Inference):', updated);
-        return updated;
-      });
+      return;
     }
+
+    setCloudMetrics((prev) => {
+      const updated = {
+        ...prev,
+        costPerInference:
+          prev.costPerInference + (COST_PER_INFERENCE_INCREMENT * (imageSeconds || 0)),
+      };
+      console.log('[App] Updated Cloud metrics (Cost Per Inference):', updated);
+      return updated;
+    });
   }, []);
 
   // Stable callback for cost calculation
@@ -95,13 +96,17 @@ function App() {
 
     if (view === 'Edge') {
       setEdgeMetrics((prev) => {
-        const updated = { ...prev, totalCost, costPerGeneration };
+        const updated = { ...prev, totalCost, costPerGeneration, costPerInference: 0 };
         console.log('[App] Updated Edge metrics (Cost):', updated);
         return updated;
       });
     } else {
       setCloudMetrics((prev) => {
-        const updated = { ...prev, totalCost, costPerGeneration };
+        const updated = {
+          ...prev,
+          totalCost,
+          costPerGeneration,
+        };
         console.log('[App] Updated Cloud metrics (Cost):', updated);
         return updated;
       });
@@ -164,12 +169,13 @@ function App() {
             <div className="metric-card">
               <h3>Cost</h3>
               <div className="metric-value">${currentMetrics.cost}/hr</div>
-              {selectedView !== 'Edge' && currentMetrics.totalCost > 0 && (
+              {selectedView !== 'Edge' && currentMetrics.totalCost > 0}
+               {/* && (
                 <div style={{ fontSize: '12px', marginTop: '8px', color: '#666' }}>
                   <div>Total: ${currentMetrics.totalCost.toFixed(4)}</div>
                   <div>Per Gen: ${currentMetrics.costPerGeneration.toFixed(4)}</div>
                 </div>
-              )}
+              )} */}
             </div>
 
             <div className="metric-card">
