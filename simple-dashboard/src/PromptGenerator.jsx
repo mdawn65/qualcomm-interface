@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 import "./App.css";
 
-const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCostCalculated, onClipCalculated }) => {
+const CLOUD_GPU_URL = "http://65.109.75.37:8001"; // Verda cloud Stable Diffusion server
+
+const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCostCalculated, onClipCalculated, onInferenceCostIncrement }) => {
   const [prompt, setPrompt] = useState("");
   const [negativePrompt, setNegativePrompt] = useState("");
   const [numSeeds, setNumSeeds] = useState(1);
@@ -34,6 +36,17 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
   const generateImage = async () => {
     if (!prompt.trim()) return;
     console.log('[PromptGenerator] Generate button clicked');
+
+    if (onInferenceCostIncrement) {
+      try {
+        const imageCount = totalImages;
+        console.log('[PromptGenerator] Incrementing Cost Per Inference for view:', selectedView, 'imageCount:', imageCount);
+        onInferenceCostIncrement(selectedView, imageCount);
+      } catch (err) {
+        console.error('[PromptGenerator] Error incrementing Cost Per Inference:', err);
+      }
+    }
+
     setLoading(true);
     setAverageLatency(null);
     setTotalLatency(null);
@@ -139,20 +152,22 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
         setLoading(false);
       } else {
         console.log('[PromptGenerator] [Cloud] Starting image generation...');
-        const response = await fetch("https://pzb46h01-8000.usw3.devtunnels.ms/generate", {
+
+        const response = await fetch(`${CLOUD_GPU_URL}/generate`, {
           method: "POST",
           mode: "cors",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             prompt: prompt,
-            negative_prompt: negativePrompt,
             num_steps: numSteps,
             num_seeds: numSeeds,
             num_guidance_samples: numGuidanceSamples,
             guidance_scale_min: guidanceScaleMin,
             guidance_scale_max: guidanceScaleMax,
-            compute_clip_score: computeClipScore,
-            seeds: randomSeeds
+            seeds: randomSeeds,
+            width: 512,
+            height: 512,
+            compute_clip_score: computeClipScore
           })
         });
 
@@ -160,7 +175,7 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
           throw new Error("Failed to generate image");
         }
 
-        // Handle streaming responses
+        // Handle streaming responses (SSE) from cloud_server
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';

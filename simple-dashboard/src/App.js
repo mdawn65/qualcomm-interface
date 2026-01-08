@@ -2,6 +2,8 @@ import React, { useState, useCallback } from 'react';
 import './App.css';
 import PromptGenerator from './PromptGenerator';
 
+const COST_PER_INFERENCE_INCREMENT = 0.000138;
+
 function App() {
   const [selectedView, setSelectedView] = useState('Edge');
 
@@ -9,14 +11,16 @@ function App() {
     networkLatency: 0,
     cost: 0,
     totalCost: 0,
-    costPerGeneration: 0
+    costPerGeneration: 0,
+    costPerInference: 0
   });
 
   const [cloudMetrics, setCloudMetrics] = useState({
     networkLatency: 0,
     cost: 0.504,
     totalCost: 0,
-    costPerGeneration: 0
+    costPerGeneration: 0,
+    costPerInference: 0
   });
 
   const [edgeInfo] = useState({
@@ -56,6 +60,27 @@ function App() {
       setCloudMetrics((prev) => {
         const updated = { ...prev, networkLatency: latencyInSeconds };
         console.log('[App] Updated Cloud metrics:', updated);
+        return updated;
+      });
+    }
+  }, []);
+
+  const handleInferenceCostIncrement = useCallback((view, imageCount) => {
+    console.log('[App] ========== INFERENCE COST INCREMENT ==========');
+    console.log('[App] View:', view);
+    console.log('[App] Image count:', imageCount);
+
+    // Edge view: do not change Cost Per Inference (stays at 0)
+    if (view === 'Edge') {
+      console.log('[App] Edge view selected - Cost Per Inference remains unchanged');
+    } else {
+      setCloudMetrics((prev) => {
+        const updated = {
+          ...prev,
+          costPerInference: prev.costPerInference + (COST_PER_INFERENCE_INCREMENT * (imageCount || 1))
+        };
+
+        console.log('[App] Updated Cloud metrics (Cost Per Inference):', updated);
         return updated;
       });
     }
@@ -146,6 +171,11 @@ function App() {
                 </div>
               )}
             </div>
+
+            <div className="metric-card">
+              <h3>Cost Per Inference</h3>
+              <div className="metric-value">${currentMetrics.costPerInference.toFixed(6)}/Inf</div>
+            </div>
           </div>
         </div>
 
@@ -156,6 +186,7 @@ function App() {
             costPerHour={currentMetrics.cost}
             onLatencyCalculated={handleLatencyCalculated}
             onCostCalculated={handleCostCalculated}
+            onInferenceCostIncrement={handleInferenceCostIncrement}
           />
 
           {/* Comparison Charts */}
