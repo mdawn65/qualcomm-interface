@@ -19,6 +19,8 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
   const [totalLatency, setTotalLatency] = useState(null);
   const [lastEdgeSeeds, setLastEdgeSeeds] = useState(null);
   const [edgeRunCompleted, setEdgeRunCompleted] = useState(false);
+  const [lastCloudSeeds, setLastCloudSeeds] = useState(null);
+  const [cloudRunCompleted, setCloudRunCompleted] = useState(false);
 
   const totalImages = numSeeds * numGuidanceSamples;
 
@@ -43,6 +45,7 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
     setAverageLatency(null);
     setTotalLatency(null);
     setEdgeRunCompleted(false);
+    setCloudRunCompleted(false);
 
     const view = viewOverride || selectedView;
 
@@ -70,9 +73,11 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
     }
     setImageGrid(initialGrid);
 
-    // Store seeds for Edge so we can reuse them on Cloud
+    // Store seeds for Edge/Cloud so we can reuse them for cross-view repeats
     if (view === 'Edge') {
       setLastEdgeSeeds(randomSeeds);
+    } else if (view === 'Cloud') {
+      setLastCloudSeeds(randomSeeds);
     }
 
     try {
@@ -256,6 +261,7 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
                   if (typeof data.averageLatency === 'number') {
                     setAverageLatency(data.averageLatency);
                   }
+                  setCloudRunCompleted(true);
                 }
               } catch (e) {
                 console.error('Error parsing JSON:', e);
@@ -477,6 +483,23 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
             }}
           >
             Repeat on Cloud
+          </button>
+        )}
+        {selectedView === 'Cloud' && lastCloudSeeds && cloudRunCompleted && !loading && (
+          <button
+            onClick={() => {
+              if (onViewChange) {
+                onViewChange('Edge');
+              }
+              generateImage('Edge', lastCloudSeeds);
+            }}
+            className="submit-button"
+            style={{ 
+              marginTop: '10px',
+              width: '100%'
+            }}
+          >
+            Repeat on Edge
           </button>
         )}
       </div>
