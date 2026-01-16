@@ -4,23 +4,55 @@ import PromptGenerator from './PromptGenerator';
 
 const COST_PER_INFERENCE_INCREMENT = 0.00003836;
 
+const INITIAL_EDGE_METRICS = {
+  networkLatency: 0,
+  cost: 0,
+  totalCost: 0,
+  costPerGeneration: 0,
+  costPerInference: 0,
+  imagesGenerated: 0,
+};
+
+const INITIAL_CLOUD_METRICS = {
+  networkLatency: 0,
+  cost: 0.138,
+  totalCost: 0,
+  costPerGeneration: 0,
+  costPerInference: 0,
+  imagesGenerated: 0,
+};
+
 function App() {
   const [selectedView, setSelectedView] = useState('Edge');
 
-  const [edgeMetrics, setEdgeMetrics] = useState({
-    networkLatency: 0,
-    cost: 0,
-    totalCost: 0,
-    costPerGeneration: 0,
-    costPerInference: 0
+  const [edgeMetrics, setEdgeMetrics] = useState(() => {
+    let imagesGenerated = 0;
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const stored = window.localStorage.getItem('edgeImagesGenerated');
+      const parsed = stored !== null ? parseInt(stored, 10) : 0;
+      imagesGenerated = Number.isNaN(parsed) ? 0 : parsed;
+    }
+    return {
+      ...INITIAL_EDGE_METRICS,
+      imagesGenerated,
+    };
   });
 
-  const [cloudMetrics, setCloudMetrics] = useState({
-    networkLatency: 0,
-    cost: 0.138,
-    totalCost: 0,
-    costPerGeneration: 0,
-    costPerInference: 0
+  const [cloudMetrics, setCloudMetrics] = useState(() => {
+    let imagesGenerated = 0;
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const stored = window.localStorage.getItem('cloudImagesGenerated');
+      const parsed = stored !== null ? parseInt(stored, 10) : 0;
+      imagesGenerated = Number.isNaN(parsed) ? 0 : parsed;
+    }
+
+    const baseCostPerInference = imagesGenerated * INITIAL_CLOUD_METRICS.cost;
+
+    return {
+      ...INITIAL_CLOUD_METRICS,
+      imagesGenerated,
+      costPerInference: baseCostPerInference,
+    };
   });
 
   const [edgeInfo] = useState({
@@ -42,7 +74,13 @@ function App() {
   const currentMetrics = selectedView === 'Edge' ? edgeMetrics : cloudMetrics;
   const currentInfo = selectedView === 'Edge' ? edgeInfo : cloudInfo;
 
-  const handleViewChange = (event) => setSelectedView(event.target.value);
+  const handleViewChange = (eventOrValue) => {
+    if (typeof eventOrValue === 'string') {
+      setSelectedView(eventOrValue);
+    } else if (eventOrValue && eventOrValue.target) {
+      setSelectedView(eventOrValue.target.value);
+    }
+  };
 
   // Stable callback for latency calculation
   const handleLatencyCalculated = useCallback((latencyInSeconds, view) => {
@@ -85,6 +123,38 @@ function App() {
       console.log('[App] Updated Cloud metrics (Cost Per Inference):', updated);
       return updated;
     });
+  }, []);
+
+  // Increment images generated count for the active view
+  const handleImageGenerated = useCallback((view) => {
+    console.log('[App] ========== IMAGE GENERATED ==========');
+    console.log('[App] View:', view);
+
+    if (view === 'Edge') {
+      setEdgeMetrics((prev) => {
+        const updated = {
+          ...prev,
+          imagesGenerated: prev.imagesGenerated + 1,
+        };
+        console.log('[App] Updated Edge metrics (Images Generated):', updated);
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem('edgeImagesGenerated', String(updated.imagesGenerated));
+        }
+        return updated;
+      });
+    } else {
+      setCloudMetrics((prev) => {
+        const updated = {
+          ...prev,
+          imagesGenerated: prev.imagesGenerated + 1,
+        };
+        console.log('[App] Updated Cloud metrics (Images Generated):', updated);
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem('cloudImagesGenerated', String(updated.imagesGenerated));
+        }
+        return updated;
+      });
+    }
   }, []);
 
   // Stable callback for cost calculation
@@ -167,6 +237,10 @@ function App() {
             </div>
 
             <div className="metric-card">
+              <h3>Images Generated</h3>
+              <div className="metric-value">{currentMetrics.imagesGenerated}</div>
+            </div>
+            <div className="metric-card">
               <h3>Cost</h3>
               <div className="metric-value">${currentMetrics.cost}/hr</div>
               {selectedView !== 'Edge' && currentMetrics.totalCost > 0}
@@ -179,7 +253,8 @@ function App() {
             </div>
 
             <div className="metric-card">
-              <h3>Cost Per Inference</h3>
+              <h3>Cost Per Image</h3> 
+              {/* Was previously cost per inference */}
               <div className="metric-value">${currentMetrics.costPerInference.toFixed(6)}/Inf</div>
             </div>
           </div>
@@ -193,6 +268,8 @@ function App() {
             onLatencyCalculated={handleLatencyCalculated}
             onCostCalculated={handleCostCalculated}
             onInferenceCostIncrement={handleInferenceCostIncrement}
+            onImageGenerated={handleImageGenerated}
+            onViewChange={handleViewChange}
           />
 
           {/* Comparison Charts */}

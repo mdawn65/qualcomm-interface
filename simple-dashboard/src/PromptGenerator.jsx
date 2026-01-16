@@ -3,7 +3,7 @@ import "./App.css";
 
 const CLOUD_GPU_URL = "http://65.109.75.37:8001"; // Verda cloud Stable Diffusion server
 
-const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCostCalculated, onClipCalculated, onInferenceCostIncrement }) => {
+const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCostCalculated, onClipCalculated, onInferenceCostIncrement, onImageGenerated, onViewChange }) => {
   const [prompt, setPrompt] = useState("");
   const [negativePrompt, setNegativePrompt] = useState("");
   const [numSeeds, setNumSeeds] = useState(1);
@@ -17,7 +17,9 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
   const [expandedImage, setExpandedImage] = useState(null);
   const [averageLatency, setAverageLatency] = useState(null);
   const [totalLatency, setTotalLatency] = useState(null);
-  
+  const [lastEdgeSeeds, setLastEdgeSeeds] = useState(null);
+  const [edgeRunCompleted, setEdgeRunCompleted] = useState(false);
+
   const totalImages = numSeeds * numGuidanceSamples;
 
   // Calculate guidance scale values for the grid
@@ -33,18 +35,23 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
     return values;
   };
 
-  const generateImage = async () => {
+  const generateImage = async (viewOverride, seedsOverride) => {
     if (!prompt.trim()) return;
     console.log('[PromptGenerator] Generate button clicked');
 
     setLoading(true);
     setAverageLatency(null);
     setTotalLatency(null);
-    
-    // Generate random seeds for each seed index
-    const randomSeeds = Array.from({ length: numSeeds }, () => 
-      Math.floor(Math.random() * 2147483647)
-    );
+    setEdgeRunCompleted(false);
+
+    const view = viewOverride || selectedView;
+
+    // Generate seeds for each seed index (or reuse provided ones)
+    const randomSeeds = seedsOverride && Array.isArray(seedsOverride)
+      ? seedsOverride
+      : Array.from({ length: numSeeds }, () => 
+          Math.floor(Math.random() * 2147483647)
+        );
     
     // Initialize grid with loading states
     const initialGrid = {};
@@ -63,8 +70,13 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
     }
     setImageGrid(initialGrid);
 
+    // Store seeds for Edge so we can reuse them on Cloud
+    if (view === 'Edge') {
+      setLastEdgeSeeds(randomSeeds);
+    }
+
     try {
-      if (selectedView === 'Edge') {
+      if (view === 'Edge') {
         console.log('[PromptGenerator] [Edge] Starting image generation...');
         const response = await fetch("http://localhost:5000/generate/", {
           method: "POST",
@@ -123,19 +135,25 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
 
                   // Increment cost per inference using per-image generation time
                   if (onInferenceCostIncrement && typeof data.generationTime === 'number') {
-                    onInferenceCostIncrement(selectedView, data.generationTime);
+                    onInferenceCostIncrement(view, data.generationTime);
+                  }
+
+                  // Notify parent that an image has been generated
+                  if (onImageGenerated) {
+                    onImageGenerated(view);
                   }
                 } else if (data.type === 'complete') {
                   console.log('[PromptGenerator] [Edge] Generation complete');
                   if (typeof data.totalLatency === 'number') {
                     setTotalLatency(data.totalLatency);
                     if (onLatencyCalculated) {
-                      onLatencyCalculated(data.totalLatency, selectedView);
+                      onLatencyCalculated(data.totalLatency, view);
                     }
                   }
                   if (typeof data.averageLatency === 'number') {
                     setAverageLatency(data.averageLatency);
                   }
+                  setEdgeRunCompleted(true);
                 }
               } catch (e) {
                 console.error('Error parsing JSON:', e);
@@ -208,18 +226,18 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
 
                   // Increment cost per inference using per-image generation time
                   if (onInferenceCostIncrement && typeof data.generationTime === 'number') {
-                    onInferenceCostIncrement(selectedView, data.generationTime);
+                    onInferenceCostIncrement(view, data.generationTime);
                   }
                 } else if (data.type === 'complete') {
                   console.log('[PromptGenerator] [Cloud] Generation complete');
                   if (typeof data.totalLatency === 'number') {
                     setTotalLatency(data.totalLatency);
                     if (onLatencyCalculated) {
-                      onLatencyCalculated(data.totalLatency, selectedView);
+                      onLatencyCalculated(data.totalLatency, view);
                     }
                     
                     // Calculate cost for Cloud view only
-                    if (selectedView !== 'Edge' && costPerHour && onCostCalculated) {
+                    if (view !== 'Edge' && costPerHour && onCostCalculated) {
                       const costPerSecond = costPerHour / 3600;
                       const totalCost = costPerSecond * data.totalLatency;
                       const costPerGeneration = totalCost / totalImages;
@@ -232,7 +250,7 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
                       console.log('  Total cost:', totalCost);
                       console.log('  Cost per generation:', costPerGeneration);
                       
-                      onCostCalculated(totalCost, costPerGeneration, selectedView);
+                      onCostCalculated(totalCost, costPerGeneration, view);
                     }
                   }
                   if (typeof data.averageLatency === 'number') {
@@ -433,7 +451,7 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
         </div>
         
         <button
-          onClick={generateImage}
+          onClick={() => generateImage()}
           className="submit-button"
           disabled={loading || !prompt.trim()}
           style={{ 
@@ -444,6 +462,23 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
         >
           {loading ? 'Generating...' : 'Generate'}
         </button>
+        {selectedView === 'Edge' && lastEdgeSeeds && edgeRunCompleted && !loading && (
+          <button
+            onClick={() => {
+              if (onViewChange) {
+                onViewChange('Cloud');
+              }
+              generateImage('Cloud', lastEdgeSeeds);
+            }}
+            className="submit-button"
+            style={{ 
+              marginTop: '10px',
+              width: '100%'
+            }}
+          >
+            Repeat on Cloud
+          </button>
+        )}
       </div>
 
       {/* Image Grid Display */}
