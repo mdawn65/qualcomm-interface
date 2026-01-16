@@ -255,7 +255,7 @@ function App() {
             <div className="metric-card">
               <h3>Cost Per Image</h3> 
               {/* Was previously cost per inference */}
-              <div className="metric-value">${currentMetrics.costPerInference.toFixed(6)}/Inf</div>
+              <div className="metric-value">${currentMetrics.costPerInference.toFixed(2)}/Inf</div>
             </div>
           </div>
         </div>
