@@ -1,7 +1,6 @@
 import React, { useState } from "react";
-import "./App.css";
 
-const CLOUD_GPU_URL = "http://65.109.75.37:8001"; // Verda cloud Stable Diffusion server
+const CLOUD_GPU_URL = "https://pzb46h01-8000.usw3.devtunnels.ms";
 
 const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCostCalculated, onClipCalculated, onInferenceCostIncrement, onImageGenerated, onViewChange }) => {
   const [prompt, setPrompt] = useState("");
@@ -21,17 +20,23 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
   const [edgeRunCompleted, setEdgeRunCompleted] = useState(false);
   const [lastCloudSeeds, setLastCloudSeeds] = useState(null);
   const [cloudRunCompleted, setCloudRunCompleted] = useState(false);
+  
+  // Store results from both Edge and Cloud for comparison
+  const [edgeResults, setEdgeResults] = useState({});
+  const [cloudResults, setCloudResults] = useState({});
+  
+  // Store metadata for each generation run to verify matching prompts/seeds
+  const [edgeGenerationMeta, setEdgeGenerationMeta] = useState(null);
+  const [cloudGenerationMeta, setCloudGenerationMeta] = useState(null);
 
   const totalImages = numSeeds * numGuidanceSamples;
 
-  // Calculate guidance scale values for the grid
   const getGuidanceScaleValues = () => {
     if (numGuidanceSamples === 1) return [Math.round(guidanceScaleMin * 2) / 2];
     const values = [];
     const step = (guidanceScaleMax - guidanceScaleMin) / (numGuidanceSamples - 1);
     for (let i = 0; i < numGuidanceSamples; i++) {
       const value = guidanceScaleMin + step * i;
-      // Round to nearest 0.5
       values.push(Math.round(value * 2) / 2);
     }
     return values;
@@ -49,14 +54,12 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
 
     const view = viewOverride || selectedView;
 
-    // Generate seeds for each seed index (or reuse provided ones)
     const randomSeeds = seedsOverride && Array.isArray(seedsOverride)
       ? seedsOverride
       : Array.from({ length: numSeeds }, () => 
           Math.floor(Math.random() * 2147483647)
         );
     
-    // Initialize grid with loading states
     const initialGrid = {};
     for (let seed = 0; seed < numSeeds; seed++) {
       for (let guidance = 0; guidance < numGuidanceSamples; guidance++) {
@@ -73,11 +76,24 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
     }
     setImageGrid(initialGrid);
 
-    // Store seeds for Edge/Cloud so we can reuse them for cross-view repeats
     if (view === 'Edge') {
       setLastEdgeSeeds(randomSeeds);
+      // Store generation metadata
+      setEdgeGenerationMeta({
+        prompt: prompt,
+        negativePrompt: negativePrompt,
+        numSteps: numSteps,
+        seeds: randomSeeds
+      });
     } else if (view === 'Cloud') {
       setLastCloudSeeds(randomSeeds);
+      // Store generation metadata
+      setCloudGenerationMeta({
+        prompt: prompt,
+        negativePrompt: negativePrompt,
+        numSteps: numSteps,
+        seeds: randomSeeds
+      });
     }
 
     try {
@@ -103,10 +119,10 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
           throw new Error("Failed to generate image");
         }
 
-        // Handle streaming responses
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
+        const newEdgeResults = {};
 
         while (true) {
           const { done, value } = await reader.read();
@@ -125,25 +141,28 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
                   const key = `${data.seed_index}-${data.guidance_index}`;
                   const url = `data:image/png;base64,${data.imageBase64}`;
                   
+                  const imageData = {
+                    loading: false,
+                    imageUrl: url,
+                    clipScore: data.clipScore || null,
+                    clipComputationTime: data.clipComputationTime || null,
+                    generationTime: data.generationTime || null,
+                    seed: data.seed || null,
+                    guidanceScale: data.guidance_scale || null
+                  };
+                  
                   setImageGrid(prev => ({
                     ...prev,
-                    [key]: {
-                      loading: false,
-                      imageUrl: url,
-                      clipScore: data.clipScore || null,
-                      clipComputationTime: data.clipComputationTime || null,
-                      generationTime: data.generationTime || null,
-                      seed: data.seed || null,
-                      guidanceScale: data.guidance_scale || null
-                    }
+                    [key]: imageData
                   }));
 
-                  // Increment cost per inference using per-image generation time
+                  // Store in edgeResults
+                  newEdgeResults[key] = imageData;
+
                   if (onInferenceCostIncrement && typeof data.generationTime === 'number') {
                     onInferenceCostIncrement(view, data.generationTime);
                   }
 
-                  // Notify parent that an image has been generated
                   if (onImageGenerated) {
                     onImageGenerated(view);
                   }
@@ -159,6 +178,7 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
                     setAverageLatency(data.averageLatency);
                   }
                   setEdgeRunCompleted(true);
+                  setEdgeResults(newEdgeResults);
                 }
               } catch (e) {
                 console.error('Error parsing JSON:', e);
@@ -194,10 +214,10 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
           throw new Error("Failed to generate image");
         }
 
-        // Handle streaming responses (SSE) from cloud_server
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
+        const newCloudResults = {};
 
         while (true) {
           const { done, value } = await reader.read();
@@ -216,22 +236,29 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
                   const key = `${data.seed_index}-${data.guidance_index}`;
                   const url = `data:image/png;base64,${data.imageBase64}`;
                   
+                  const imageData = {
+                    loading: false,
+                    imageUrl: url,
+                    clipScore: data.clipScore || null,
+                    clipComputationTime: data.clipComputationTime || null,
+                    generationTime: data.generationTime || null,
+                    seed: data.seed || null,
+                    guidanceScale: data.guidance_scale || null
+                  };
+                  
                   setImageGrid(prev => ({
                     ...prev,
-                    [key]: {
-                      loading: false,
-                      imageUrl: url,
-                      clipScore: data.clipScore || null,
-                      clipComputationTime: data.clipComputationTime || null,
-                      generationTime: data.generationTime || null,
-                      seed: data.seed || null,
-                      guidanceScale: data.guidance_scale || null
-                    }
+                    [key]: imageData
                   }));
 
-                  // Increment cost per inference using per-image generation time
+                  // Store in cloudResults
+                  newCloudResults[key] = imageData;
+
                   if (onInferenceCostIncrement && typeof data.generationTime === 'number') {
                     onInferenceCostIncrement(view, data.generationTime);
+                  }
+                  if (onImageGenerated) {
+                    onImageGenerated(view);
                   }
                 } else if (data.type === 'complete') {
                   console.log('[PromptGenerator] [Cloud] Generation complete');
@@ -241,7 +268,6 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
                       onLatencyCalculated(data.totalLatency, view);
                     }
                     
-                    // Calculate cost for Cloud view only
                     if (view !== 'Edge' && costPerHour && onCostCalculated) {
                       const costPerSecond = costPerHour / 3600;
                       const totalCost = costPerSecond * data.totalLatency;
@@ -262,6 +288,7 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
                     setAverageLatency(data.averageLatency);
                   }
                   setCloudRunCompleted(true);
+                  setCloudResults(newCloudResults);
                 }
               } catch (e) {
                 console.error('Error parsing JSON:', e);
@@ -504,7 +531,6 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
         )}
       </div>
 
-      {/* Image Grid Display */}
       {Object.keys(imageGrid).length > 0 && (
         <div style={{ marginTop: '20px' }}>
           <div style={{ 
@@ -558,7 +584,6 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
             )}
           </div>
           
-          {/* Grid Container */}
           <div style={{ overflowX: 'auto' }}>
             <div style={{ 
               display: 'inline-grid',
@@ -567,7 +592,6 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
               gap: '10px',
               minWidth: 'fit-content'
             }}>
-              {/* Top-left corner cell */}
               <div style={{
                 gridColumn: 1,
                 gridRow: 1,
@@ -581,7 +605,6 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
                 Seed / Scale
               </div>
               
-              {/* Guidance Scale Headers (Horizontal) */}
               {guidanceScaleValues.map((scale, idx) => (
                 <div
                   key={`header-${idx}`}
@@ -603,7 +626,6 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
                 </div>
               ))}
               
-              {/* Seed Labels (Vertical) */}
               {Array.from({ length: numSeeds }, (_, seedIdx) => (
                 <div
                   key={`seed-label-${seedIdx}`}
@@ -625,7 +647,6 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
                 </div>
               ))}
               
-              {/* Image Grid Cells */}
               {Array.from({ length: numSeeds }, (_, seedIdx) => 
                 Array.from({ length: numGuidanceSamples }, (_, guidanceIdx) => {
                   const key = `${seedIdx}-${guidanceIdx}`;
@@ -661,7 +682,8 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
                           setExpandedImage({
                             ...cell,
                             seedIndex: seedIdx,
-                            guidanceIndex: guidanceIdx
+                            guidanceIndex: guidanceIdx,
+                            key: key
                           });
                         }
                       }}
@@ -726,7 +748,7 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
         </div>
       )}
       
-      {/* Expanded Image Modal */}
+      {/* Enhanced Expanded Image Modal with Side-by-Side Comparison */}
       {expandedImage && (
         <div 
           style={{
@@ -749,15 +771,15 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
               background: 'white',
               borderRadius: '12px',
               padding: '20px',
-              maxWidth: '90vw',
-              maxHeight: '90vh',
+              maxWidth: '95vw',
+              maxHeight: '95vh',
               display: 'flex',
               gap: '20px',
-              position: 'relative'
+              position: 'relative',
+              overflowY: 'auto'
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Close button */}
             <button
               onClick={() => setExpandedImage(null)}
               style={{
@@ -782,95 +804,310 @@ const PromptGenerator = ({ selectedView, costPerHour, onLatencyCalculated, onCos
               ×
             </button>
             
-            {/* Image */}
-            <div style={{ flex: '1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <img
-                src={expandedImage.imageUrl}
-                alt="Expanded"
-                style={{
-                  maxWidth: '100%',
-                  maxHeight: '80vh',
-                  borderRadius: '8px',
-                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)'
-                }}
-              />
-            </div>
-            
-            {/* Info panel */}
-            <div style={{
-              width: '250px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '15px',
-              fontSize: '14px'
-            }}>
-              <h3 style={{ margin: '0 0 10px 0', fontSize: '18px', color: '#333' }}>Image Details</h3>
-              
-              <div style={{
-                padding: '12px',
-                background: '#f5f5f5',
-                borderRadius: '6px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontWeight: '600', color: '#666' }}>Seed Index:</span>
-                  <span style={{ color: '#333' }}>{expandedImage.seedIndex}</span>
+            {/* Check if we have both Edge and Cloud results for comparison */}
+            {/* Only show comparison if prompts and seeds match */}
+            {edgeResults[expandedImage.key] && 
+             cloudResults[expandedImage.key] && 
+             edgeGenerationMeta && 
+             cloudGenerationMeta &&
+             edgeGenerationMeta.prompt === cloudGenerationMeta.prompt &&
+             edgeGenerationMeta.negativePrompt === cloudGenerationMeta.negativePrompt &&
+             edgeGenerationMeta.numSteps === cloudGenerationMeta.numSteps &&
+             edgeGenerationMeta.seeds[expandedImage.seedIndex] === cloudGenerationMeta.seeds[expandedImage.seedIndex] ? (
+              <>
+                {/* Edge Result */}
+                <div style={{ flex: '1', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  <div style={{
+                    background: '#4caf50',
+                    color: 'white',
+                    padding: '10px',
+                    borderRadius: '6px',
+                    textAlign: 'center',
+                    fontWeight: 'bold',
+                    fontSize: '16px'
+                  }}>
+                    EDGE
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <img
+                      src={edgeResults[expandedImage.key].imageUrl}
+                      alt="Edge"
+                      style={{
+                        maxWidth: '100%',
+                        maxHeight: '60vh',
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)'
+                      }}
+                    />
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
+                    fontSize: '14px'
+                  }}>
+                    {edgeResults[expandedImage.key].generationTime !== null && (
+                      <div style={{
+                        padding: '12px',
+                        background: '#e3f2fd',
+                        borderRadius: '6px',
+                        border: '2px solid #2196f3'
+                      }}>
+                        <div style={{ fontWeight: '600', color: '#1976d2', marginBottom: '5px' }}>
+                          Generation Time
+                        </div>
+                        <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#1565c0' }}>
+                          {edgeResults[expandedImage.key].generationTime}s
+                        </div>
+                      </div>
+                    )}
+                    {edgeResults[expandedImage.key].clipScore !== null && (
+                      <div style={{
+                        padding: '12px',
+                        background: '#e8f5e9',
+                        borderRadius: '6px',
+                        border: '2px solid #4caf50'
+                      }}>
+                        <div style={{ fontWeight: '600', color: '#2e7d32', marginBottom: '5px' }}>
+                          CLIP Score
+                        </div>
+                        <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#1b5e20' }}>
+                          {edgeResults[expandedImage.key].clipScore.toFixed(4)}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                
-                {expandedImage.seed !== null && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontWeight: '600', color: '#666' }}>Seed Value:</span>
-                    <span style={{ color: '#333' }}>{expandedImage.seed}</span>
+
+                {/* Cloud Result */}
+                <div style={{ flex: '1', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  <div style={{
+                    background: '#2196f3',
+                    color: 'white',
+                    padding: '10px',
+                    borderRadius: '6px',
+                    textAlign: 'center',
+                    fontWeight: 'bold',
+                    fontSize: '16px'
+                  }}>
+                    CLOUD
                   </div>
-                )}
-                
-                {expandedImage.guidanceScale !== null && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontWeight: '600', color: '#666' }}>Guidance Scale:</span>
-                    <span style={{ color: '#333' }}>{expandedImage.guidanceScale}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <img
+                      src={cloudResults[expandedImage.key].imageUrl}
+                      alt="Cloud"
+                      style={{
+                        maxWidth: '100%',
+                        maxHeight: '60vh',
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)'
+                      }}
+                    />
                   </div>
-                )}
-              </div>
-              
-              {expandedImage.generationTime !== null && (
-                <div style={{
-                  padding: '12px',
-                  background: '#e3f2fd',
-                  borderRadius: '6px',
-                  border: '2px solid #2196f3'
-                }}>
-                  <div style={{ fontWeight: '600', color: '#1976d2', marginBottom: '5px' }}>
-                    Generation Time
-                  </div>
-                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#1565c0' }}>
-                    {expandedImage.generationTime}s
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
+                    fontSize: '14px'
+                  }}>
+                    {cloudResults[expandedImage.key].generationTime !== null && (
+                      <div style={{
+                        padding: '12px',
+                        background: '#e3f2fd',
+                        borderRadius: '6px',
+                        border: '2px solid #2196f3'
+                      }}>
+                        <div style={{ fontWeight: '600', color: '#1976d2', marginBottom: '5px' }}>
+                          Generation Time
+                        </div>
+                        <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#1565c0' }}>
+                          {cloudResults[expandedImage.key].generationTime}s
+                        </div>
+                      </div>
+                    )}
+                    {cloudResults[expandedImage.key].clipScore !== null && (
+                      <div style={{
+                        padding: '12px',
+                        background: '#e8f5e9',
+                        borderRadius: '6px',
+                        border: '2px solid #4caf50'
+                      }}>
+                        <div style={{ fontWeight: '600', color: '#2e7d32', marginBottom: '5px' }}>
+                          CLIP Score
+                        </div>
+                        <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#1b5e20' }}>
+                          {cloudResults[expandedImage.key].clipScore.toFixed(4)}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
-              )}
-              
-              {expandedImage.clipScore !== null && (
+
+                {/* Shared Info Panel */}
                 <div style={{
-                  padding: '12px',
-                  background: '#e8f5e9',
-                  borderRadius: '6px',
-                  border: '2px solid #4caf50'
+                  width: '250px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '15px',
+                  fontSize: '14px'
                 }}>
-                  <div style={{ fontWeight: '600', color: '#2e7d32', marginBottom: '5px' }}>
-                    CLIP Score
+                  <h3 style={{ margin: '0 0 10px 0', fontSize: '18px', color: '#333' }}>Comparison Details</h3>
+                  
+                  <div style={{
+                    padding: '12px',
+                    background: '#f5f5f5',
+                    borderRadius: '6px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ fontWeight: '600', color: '#666' }}>Seed Index:</span>
+                      <span style={{ color: '#333' }}>{expandedImage.seedIndex}</span>
+                    </div>
+                    
+                    {expandedImage.seed !== null && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ fontWeight: '600', color: '#666' }}>Seed Value:</span>
+                        <span style={{ color: '#333' }}>{expandedImage.seed}</span>
+                      </div>
+                    )}
+                    
+                    {expandedImage.guidanceScale !== null && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ fontWeight: '600', color: '#666' }}>Guidance Scale:</span>
+                        <span style={{ color: '#333' }}>{expandedImage.guidanceScale}</span>
+                      </div>
+                    )}
                   </div>
-                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#1b5e20' }}>
-                    {expandedImage.clipScore.toFixed(4)}
-                  </div>
-                  {expandedImage.clipComputationTime !== null && (
-                    <div style={{ fontSize: '11px', color: '#2e7d32', marginTop: '5px' }}>
-                      Computed in {expandedImage.clipComputationTime}s
+
+                  {/* Performance Comparison */}
+                  {edgeResults[expandedImage.key].generationTime !== null && 
+                   cloudResults[expandedImage.key].generationTime !== null && (
+                    <div style={{
+                      padding: '12px',
+                      background: '#fff3e0',
+                      borderRadius: '6px',
+                      border: '2px solid #ff9800'
+                    }}>
+                      <div style={{ fontWeight: '600', color: '#e65100', marginBottom: '8px' }}>
+                        Speed Comparison
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#bf360c' }}>
+                        {edgeResults[expandedImage.key].generationTime < cloudResults[expandedImage.key].generationTime ? (
+                          <>
+                            <strong>Edge is faster</strong>
+                            <div style={{ marginTop: '5px' }}>
+                              {((cloudResults[expandedImage.key].generationTime / edgeResults[expandedImage.key].generationTime - 1) * 100).toFixed(1)}% faster
+                            </div>
+                          </>
+                        ) : edgeResults[expandedImage.key].generationTime > cloudResults[expandedImage.key].generationTime ? (
+                          <>
+                            <strong>Cloud is faster</strong>
+                            <div style={{ marginTop: '5px' }}>
+                              {((edgeResults[expandedImage.key].generationTime / cloudResults[expandedImage.key].generationTime - 1) * 100).toFixed(1)}% faster
+                            </div>
+                          </>
+                        ) : (
+                          <strong>Same speed</strong>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
-              )}
-            </div>
+              </>
+            ) : (
+              /* Single Image View (no comparison available) */
+              <>
+                <div style={{ flex: '1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <img
+                    src={expandedImage.imageUrl}
+                    alt="Expanded"
+                    style={{
+                      maxWidth: '100%',
+                      maxHeight: '80vh',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)'
+                    }}
+                  />
+                </div>
+                
+                <div style={{
+                  width: '250px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '15px',
+                  fontSize: '14px'
+                }}>
+                  <h3 style={{ margin: '0 0 10px 0', fontSize: '18px', color: '#333' }}>Image Details</h3>
+                  
+                  <div style={{
+                    padding: '12px',
+                    background: '#f5f5f5',
+                    borderRadius: '6px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ fontWeight: '600', color: '#666' }}>Seed Index:</span>
+                      <span style={{ color: '#333' }}>{expandedImage.seedIndex}</span>
+                    </div>
+                    
+                    {expandedImage.seed !== null && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ fontWeight: '600', color: '#666' }}>Seed Value:</span>
+                        <span style={{ color: '#333' }}>{expandedImage.seed}</span>
+                      </div>
+                    )}
+                    
+                    {expandedImage.guidanceScale !== null && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ fontWeight: '600', color: '#666' }}>Guidance Scale:</span>
+                        <span style={{ color: '#333' }}>{expandedImage.guidanceScale}</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {expandedImage.generationTime !== null && (
+                    <div style={{
+                      padding: '12px',
+                      background: '#e3f2fd',
+                      borderRadius: '6px',
+                      border: '2px solid #2196f3'
+                    }}>
+                      <div style={{ fontWeight: '600', color: '#1976d2', marginBottom: '5px' }}>
+                        Generation Time
+                      </div>
+                      <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#1565c0' }}>
+                        {expandedImage.generationTime}s
+                      </div>
+                    </div>
+                  )}
+                  
+                  {expandedImage.clipScore !== null && (
+                    <div style={{
+                      padding: '12px',
+                      background: '#e8f5e9',
+                      borderRadius: '6px',
+                      border: '2px solid #4caf50'
+                    }}>
+                      <div style={{ fontWeight: '600', color: '#2e7d32', marginBottom: '5px' }}>
+                        CLIP Score
+                      </div>
+                      <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#1b5e20' }}>
+                        {expandedImage.clipScore.toFixed(4)}
+                      </div>
+                      {expandedImage.clipComputationTime !== null && (
+                        <div style={{ fontSize: '11px', color: '#2e7d32', marginTop: '5px' }}>
+                          Computed in {expandedImage.clipComputationTime}s
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

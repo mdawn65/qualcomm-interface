@@ -19,9 +19,14 @@ CORS(app)
 
 # Model paths
 HF_REPO = "Manojb/stable-diffusion-2-1-base"
-TEXT_ENCODER_PATH = r"C:\Users\maggi\projects\qualcomm-interface\simple-dashboard\StableDiffusion\build\stable_diffusion_v2_1_w8a16\precompiled\qualcomm-snapdragon-x-elite\text_encoder\model.onnx"
-UNET_PATH = r"C:\Users\maggi\projects\qualcomm-interface\simple-dashboard\StableDiffusion\build\stable_diffusion_v2_1_w8a16\precompiled\qualcomm-snapdragon-x-elite\unet\model.onnx"
-VAE_DECODER_PATH = r"C:\Users\maggi\projects\qualcomm-interface\simple-dashboard\StableDiffusion\build\stable_diffusion_v2_1_w8a16\precompiled\qualcomm-snapdragon-x-elite\vae_decoder\model.onnx"
+# TEXT_ENCODER_PATH = r"C:\Users\maggi\projects\qualcomm-interface\simple-dashboard\StableDiffusion\build\stable_diffusion_v2_1_w8a16\precompiled\qualcomm-snapdragon-x-elite\text_encoder\model.onnx"
+# UNET_PATH = r"C:\Users\maggi\projects\qualcomm-interface\simple-dashboard\StableDiffusion\build\stable_diffusion_v2_1_w8a16\precompiled\qualcomm-snapdragon-x-elite\unet\model.onnx"
+# VAE_DECODER_PATH = r"C:\Users\maggi\projects\qualcomm-interface\simple-dashboard\StableDiffusion\build\stable_diffusion_v2_1_w8a16\precompiled\qualcomm-snapdragon-x-elite\vae_decoder\model.onnx"
+TEXT_ENCODER_PATH = r"C:\Users\sunny\Documents\qualcomm_sd\ai-hub-apps\apps\windows\python\StableDiffusion\build\stable_diffusion_v2_1_w8a16\precompiled\qualcomm-snapdragon-x-elite\text_encoder\model.onnx"
+UNET_PATH = r"C:\Users\sunny\Documents\qualcomm_sd\ai-hub-apps\apps\windows\python\StableDiffusion\build\stable_diffusion_v2_1_w8a16\precompiled\qualcomm-snapdragon-x-elite\unet\model.onnx"
+VAE_DECODER_PATH = r"C:\Users\sunny\Documents\qualcomm_sd\ai-hub-apps\apps\windows\python\StableDiffusion\build\stable_diffusion_v2_1_w8a16\precompiled\qualcomm-snapdragon-x-elite\vae_decoder\model.onnx"
+
+
 
 # Global model instances
 sdapp = None
